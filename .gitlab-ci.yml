@@ -4,6 +4,9 @@ stages:
     - quality
     - package
 
+before_script:
+  - chmod +x ./mvnw
+
 cache:
     paths:
     - .m2/repository
