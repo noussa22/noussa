@@ -1,4 +1,4 @@
-FROM eclipse-temurin:17 as builder
+FROM eclipse-temurin:19 as builder
 WORKDIR application
 ARG ARTIFACT_NAME
 COPY ${ARTIFACT_NAME}.jar application.jar
@@ -11,7 +11,7 @@ RUN tar xzf dockerize.tar.gz
 RUN chmod +x dockerize
 
 
-FROM eclipse-temurin:17
+FROM eclipse-temurin:19
 
 WORKDIR application
 
