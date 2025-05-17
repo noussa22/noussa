@@ -6,92 +6,68 @@ stages:
   - deploy
 
 variables:
-  PLAYWD: ip172-18-0-22-d0kcqvq9d0kcr1q91nsg00cshs70  # À ajuster selon ton instance PWD
+  MAVEN_CLI_OPTS: >
+    -Dhttps.protocols=TLSv1.2
+    -Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository
+    -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=WARN
+    -Dorg.slf4j.simpleLogger.showDateTime=true
+    -Djava.awt.headless=true
+    --batch-mode --errors --fail-at-end --show-version -DinstallAtEnd=true -DdeployAtEnd=true
+  PWD: ip172-18-0-51-bihm1906chi000b37l6g  # ← remplace par ton hostname Play-With-Docker réel
+  DOCKER_HOST: tcp://$PWD:2375
   DOCKER_TLS_CERTDIR: ""
-
-before_script:
-  - chmod +x ./mvnw
-
-cache:
-  paths:
-    - .m2/repository
-  key: "$CI_JOB_NAME"
+  IMAGE_NAME: registry.gitlab.com/$CI_PROJECT_PATH/myapp:latest
 
 build_job:
   stage: build
   image: eclipse-temurin:17-jdk-alpine
   script:
-    - ./mvnw compile \
-        -Dhttps.protocols=TLSv1.2 \
-        -Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository \
-        -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=WARN \
-        -Dorg.slf4j.simpleLogger.showDateTime=true \
-        -Djava.awt.headless=true \
-        --batch-mode --errors --fail-at-end --show-version -DinstallAtEnd=true -DdeployAtEnd=true
+    - ./mvnw compile $MAVEN_CLI_OPTS
+  cache:
+    paths:
+      - .m2/repository
 
 test_job:
   stage: test
   image: eclipse-temurin:17-jdk-alpine
   script:
-    - ./mvnw test \
-        -Dhttps.protocols=TLSv1.2 \
-        -Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository \
-        -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=WARN \
-        -Dorg.slf4j.simpleLogger.showDateTime=true \
-        -Djava.awt.headless=true \
-        --batch-mode --errors --fail-at-end --show-version -DinstallAtEnd=true -DdeployAtEnd=true
+    - ./mvnw test $MAVEN_CLI_OPTS
+  cache:
+    paths:
+      - .m2/repository
 
 code_quality_job:
   stage: quality
-  allow_failure: true
-  image: docker:stable
-  services:
-    - docker:dind
-  variables:
-    DOCKER_TLS_CERTDIR: ""
+  image: codeclimate/codeclimate
   script:
-    - mkdir codequality-results
-    - docker run \
-        --env CODECLIMATE_CODE="$PWD" \
-        --volume "$PWD":/code \
-        --volume /var/run/docker.sock:/var/run/docker.sock \
-        --volume /tmp/cc:/tmp/cc \
-        codeclimate/codeclimate analyze -f html > ./codequality-results/index.html
+    - codeclimate analyze -f html > gl-code-quality-report.html
   artifacts:
     paths:
-      - codequality-results/
+      - gl-code-quality-report.html
+  allow_failure: true
 
 package_job:
   stage: package
-  image: eclipse-temurin:17-jdk-alpine
+  image: docker:latest
   services:
     - docker:dind
-  variables:
-    DOCKER_HOST: tcp://docker:2375
-    DOCKER_TLS_CERTDIR: ""
+  before_script:
+    - apk add --no-cache docker-cli-compose
   script:
-    - apk add --no-cache docker-cli docker-cli-compose
-    - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
-    - ./mvnw install -PbuildDocker -DskipTests=true -DpushImage \
-        -Dhttps.protocols=TLSv1.2 \
-        -Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository \
-        -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=WARN \
-        -Dorg.slf4j.simpleLogger.showDateTime=true \
-        -Djava.awt.headless=true \
-        --batch-mode --errors --fail-at-end --show-version -DinstallAtEnd=true -DdeployAtEnd=true
     - docker compose build
-    - docker compose push
+    - docker compose push  # facultatif si image envoyée vers registry
+  only:
+    - main
 
 deploy_staging_job:
   stage: deploy
-  image: docker:24.0.2-cli
-  script:
+  image: docker:latest
+  before_script:
     - apk add --no-cache docker-cli-compose
-    - export DOCKER_HOST=tcp://$PLAYWD.direct.labs.play-with-docker.com:2375
-    - echo "Testing connection to PWD..."
-    - curl -s --fail http://$PLAYWD.direct.labs.play-with-docker.com:2375/_ping || (echo "Docker remote not reachable" && exit 1)
-    - docker compose down || true
-    - docker compose up -d
+  script:
+    - docker compose -H tcp://$PWD:2375 up -d
   environment:
     name: staging
-    url: http://$PLAYWD-8080.direct.labs.play-with-docker.com
+    url: http://$PWD-8080.direct.labs.play-with-docker.com
+  only:
+    - main
