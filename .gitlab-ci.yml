@@ -20,13 +20,10 @@ build_job:
   stage: build
   image: eclipse-temurin:17-jdk-alpine
   script:
-    - ./mvnw compile \
+    - ./mvnw clean compile \
       -Dhttps.protocols=TLSv1.2 \
       -Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository \
-      -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=WARN \
-      -Dorg.slf4j.simpleLogger.showDateTime=true \
-      -Djava.awt.headless=true \
-      --batch-mode --errors --fail-at-end --show-version -DinstallAtEnd=true -DdeployAtEnd=true
+      --batch-mode --errors --fail-at-end --show-version
 
 test_job:
   stage: test
@@ -35,10 +32,7 @@ test_job:
     - ./mvnw test \
       -Dhttps.protocols=TLSv1.2 \
       -Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository \
-      -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=WARN \
-      -Dorg.slf4j.simpleLogger.showDateTime=true \
-      -Djava.awt.headless=true \
-      --batch-mode --errors --fail-at-end --show-version -DinstallAtEnd=true -DdeployAtEnd=true
+      --batch-mode --errors --fail-at-end --show-version
 
 code_quality_job:
   stage: quality
@@ -47,7 +41,7 @@ code_quality_job:
   services:
     - docker:dind
   script:
-    - mkdir codequality-results
+    - mkdir -p codequality-results
     - docker run \
         --env CODECLIMATE_CODE="$PWD" \
         --volume "$PWD":/code \
@@ -67,13 +61,10 @@ package_job:
     - apk add --no-cache docker-cli-compose
     - export DOCKER_HOST=tcp://$PWD.direct.labs.play-with-docker.com:2375
     - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
-    - ./mvnw install -PbuildDocker -DskipTests=true -DpushImage \
+    - ./mvnw clean install -PbuildDocker -DskipTests=true \
       -Dhttps.protocols=TLSv1.2 \
       -Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository \
-      -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=WARN \
-      -Dorg.slf4j.simpleLogger.showDateTime=true \
-      -Djava.awt.headless=true \
-      --batch-mode --errors --fail-at-end --show-version -DinstallAtEnd=true -DdeployAtEnd=true
+      --batch-mode --errors --fail-at-end --show-version
     - docker compose build
     - docker compose push
 
