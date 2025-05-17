@@ -104,6 +104,7 @@ performance_job:
   variables:
     URL: http://ip172-18-0-22-d0kcqvq91nsg00cshs70-8080.direct.labs.play-with-docker.com
     DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
   script:
     - apk add --no-cache curl docker-cli
     - |
@@ -118,13 +119,15 @@ performance_job:
         echo "Application failed to start after waiting"
         exit 1
       fi
-    - mkdir gitlab-exporter
+    - mkdir -p gitlab-exporter
     - wget -O ./gitlab-exporter/index.js https://gitlab.com/gitlab-org/gl-performance/raw/master/index.js
     - mkdir sitespeed-results
-    - docker run --shm-size=1g --rm -v "$(pwd)":/sitespeed.io sitespeedio/sitespeed.io --plugins.add ./gitlab-exporter --outputFolder sitespeed-results $URL
+    - docker run --shm-size=1g --rm -v "$(pwd)":/sitespeed.io sitespeedio/sitespeed.io --plugins.add /sitespeed.io/gitlab-exporter --outputFolder sitespeed-results $URL
     - mv sitespeed-results/data/performance.json performance.json
   artifacts:
+    when: always
     paths:
+      - performance.json
       - sitespeed-results/
     reports:
       performance: performance.json
