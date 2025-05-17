@@ -3,6 +3,7 @@ stages:
     - test
     - quality
     - package
+    - deploy
 variables:
   PLAYWD_HOSTNAME: ip172-18-0-52-d0kabpi91nsg00aa2cig
 
