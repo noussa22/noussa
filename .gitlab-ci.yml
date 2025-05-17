@@ -20,19 +20,19 @@ build_job:
   stage: build
   image: eclipse-temurin:17-jdk-alpine
   script:
-    - ./mvnw clean compile \
-      -Dhttps.protocols=TLSv1.2 \
-      -Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository \
-      --batch-mode --errors --fail-at-end --show-version
+    - ./mvnw compile \
+        -Dhttps.protocols=TLSv1.2 \
+        -Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository \
+        --batch-mode --errors --fail-at-end --show-version
 
 test_job:
   stage: test
   image: eclipse-temurin:17-jdk-alpine
   script:
     - ./mvnw test \
-      -Dhttps.protocols=TLSv1.2 \
-      -Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository \
-      --batch-mode --errors --fail-at-end --show-version
+        -Dhttps.protocols=TLSv1.2 \
+        -Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository \
+        --batch-mode --errors --fail-at-end --show-version
 
 code_quality_job:
   stage: quality
@@ -41,7 +41,7 @@ code_quality_job:
   services:
     - docker:dind
   script:
-    - mkdir -p codequality-results
+    - mkdir codequality-results
     - docker run \
         --env CODECLIMATE_CODE="$PWD" \
         --volume "$PWD":/code \
@@ -62,10 +62,10 @@ package_job:
   script:
     - apk add --no-cache docker-cli-compose
     - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
-    - ./mvnw clean install -PbuildDocker -DskipTests=true \
-      -Dhttps.protocols=TLSv1.2 \
-      -Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository \
-      --batch-mode --errors --fail-at-end --show-version
+    - ./mvnw install -PbuildDocker -DskipTests=true -DpushImage \
+        -Dhttps.protocols=TLSv1.2 \
+        -Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository \
+        --batch-mode --errors --fail-at-end --show-version
     - docker compose build
     - docker compose push
 
