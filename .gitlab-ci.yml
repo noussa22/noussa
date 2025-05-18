@@ -22,25 +22,13 @@ build_job:
   stage: build
   image: eclipse-temurin:17-jdk-alpine
   script:
-    - ./mvnw compile
-      -Dhttps.protocols=TLSv1.2
-      -Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository
-      -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=WARN
-      -Dorg.slf4j.simpleLogger.showDateTime=true
-      -Djava.awt.headless=true
-      --batch-mode --errors --fail-at-end --show-version -DinstallAtEnd=true -DdeployAtEnd=true
+    - ./mvnw compile -Dhttps.protocols=TLSv1.2 -Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=WARN -Dorg.slf4j.simpleLogger.showDateTime=true -Djava.awt.headless=true --batch-mode --errors --fail-at-end --show-version -DinstallAtEnd=true -DdeployAtEnd=true
 
 test_job:
   stage: test
   image: eclipse-temurin:17-jdk-alpine
   script:
-    - ./mvnw test
-      -Dhttps.protocols=TLSv1.2
-      -Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository
-      -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=WARN
-      -Dorg.slf4j.simpleLogger.showDateTime=true
-      -Djava.awt.headless=true
-      --batch-mode --errors --fail-at-end --show-version -DinstallAtEnd=true -DdeployAtEnd=true
+    - ./mvnw test -Dhttps.protocols=TLSv1.2 -Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=WARN -Dorg.slf4j.simpleLogger.showDateTime=true -Djava.awt.headless=true --batch-mode --errors --fail-at-end --show-version -DinstallAtEnd=true -DdeployAtEnd=true
 
 code_quality_job:
   stage: quality
@@ -50,12 +38,7 @@ code_quality_job:
     - docker:dind
   script:
     - mkdir codequality-results
-    - docker run
-        --env CODECLIMATE_CODE="$PWD"
-        --volume "$PWD":/code
-        --volume /var/run/docker.sock:/var/run/docker.sock
-        --volume /tmp/cc:/tmp/cc
-        codeclimate/codeclimate analyze -f html > ./codequality-results/index.html
+    - docker run --env CODECLIMATE_CODE="$PWD" --volume "$PWD":/code --volume /var/run/docker.sock:/var/run/docker.sock --volume /tmp/cc:/tmp/cc codeclimate/codeclimate analyze -f html > ./codequality-results/index.html
   artifacts:
     paths:
       - codequality-results/
@@ -71,13 +54,7 @@ package_job:
   script:
     - apk add --no-cache docker-cli-compose
     - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
-    - ./mvnw install -PbuildDocker -DskipTests=true -DpushImage
-      -Dhttps.protocols=TLSv1.2
-      -Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository
-      -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=WARN
-      -Dorg.slf4j.simpleLogger.showDateTime=true
-      -Djava.awt.headless=true
-      --batch-mode --errors --fail-at-end --show-version -DinstallAtEnd=true -DdeployAtEnd=true
+    - ./mvnw install -PbuildDocker -DskipTests=true -DpushImage -Dhttps.protocols=TLSv1.2 -Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=WARN -Dorg.slf4j.simpleLogger.showDateTime=true -Djava.awt.headless=true --batch-mode --errors --fail-at-end --show-version -DinstallAtEnd=true -DdeployAtEnd=true
     - docker compose build
     - docker compose push
 
@@ -105,9 +82,8 @@ performance_job:
     URL: http://ip172-18-0-31-d0kr1bq91nsg00bqemsg-8080.direct.labs.play-with-docker.com
     DOCKER_HOST: tcp://docker:2375
   script:
-    - apk add --no-cache curl docker-cli
+    - apk add --no-cache curl docker-cli wget
     - |
-      set -e
       echo "Checking if app is ready at $URL"
       x=1
       until curl -s -o /dev/null -w "%{http_code}" "$URL" | grep -q "200" || [ $x -gt 60 ]; do
@@ -121,19 +97,16 @@ performance_job:
         exit 1
       fi
 
-      mkdir -p gitlab-exporter
-      wget -O ./gitlab-exporter/index.js https://gitlab.com/gitlab-org/gl-performance/raw/master/index.js
-
-      mkdir -p sitespeed-results
-      docker run --shm-size=1g --rm -v "$(pwd)":/sitespeed.io sitespeedio/sitespeed.io \
-        --plugins.add /sitespeed.io/gitlab-exporter \
-        --outputFolder sitespeed-results $URL
-
-      mv sitespeed-results/data/performance.json performance.json
+    - mkdir gitlab-exporter
+    - wget -O ./gitlab-exporter/index.js https://gitlab.com/gitlab-org/gl-performance/raw/master/index.js
+    - mkdir sitespeed-results
+    - docker run --shm-size=1g --rm -v "$(pwd)":/sitespeed.io sitespeedio/sitespeed.io --plugins.add /sitespeed.io/gitlab-exporter/index.js --outputFolder sitespeed-results $URL
+    - mv sitespeed-results/data/performance.json performance.json
   artifacts:
     paths:
-      - performance.json
-
+      - sitespeed-results/
+    reports:
+      performance: performance.json
 
 container_scanning:
   stage: security
@@ -148,7 +121,7 @@ container_scanning:
     TRIVY_PASSWORD: "$CI_REGISTRY_PASSWORD"
     TRIVY_AUTH_URL: "$CI_REGISTRY"
     FULL_IMAGE_NAME: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
-    DOCKER_HOST: "tcp://ip172-18-0-31-d0kr1bq91nsg00bqemsg.direct.labs.play-with-docker.com:2375"
+    DOCKER_HOST: tcp://docker:2375
   script:
     - trivy image --clear-cache
     - trivy image --exit-code 0 --cache-dir .trivycache/ --no-progress --format template --template "@/contrib/gitlab.tpl" --output "$CI_PROJECT_DIR/gl-container-scanning-report.json" "$FULL_IMAGE_NAME"
