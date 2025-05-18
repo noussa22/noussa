@@ -79,34 +79,20 @@ performance_job:
   services:
     - docker:dind
   variables:
-    URL: http://ip172-18-0-31-d0kr1bq91nsg00bqemsg-8080.direct.labs.play-with-docker.com
+    URL: http://$PLAYWD-8080.direct.labs.play-with-docker.com/
     DOCKER_HOST: tcp://docker:2375
   script:
-    - apk add --no-cache curl docker-cli wget
-    - |
-      echo "Checking if app is ready at $URL"
-      x=1
-      until curl -s -o /dev/null -w "%{http_code}" "$URL" | grep -q "200" || [ $x -gt 60 ]; do
-        echo "Waiting for app... attempt $x"
-        sleep 5
-        x=$(( x + 1 ))
-      done
-
-      if [ $x -gt 60 ]; then
-        echo "Application failed to start after waiting"
-        exit 1
-      fi
-
-    - mkdir gitlab-exporter
-    - wget -O ./gitlab-exporter/index.js https://gitlab.com/gitlab-org/gl-performance/raw/master/index.js
+    - apk add --no-cache curl docker-cli
+    - x=1; while [[ "$(curl -s -o /dev/null -w ''%{http_code}'' http://$PLAYWD-8080.direct.labs.play-with-docker.com/)" != "200" || $x -le 60 ]]; do sleep 5; echo $(( x++ )); done || false
     - mkdir sitespeed-results
-    - docker run --shm-size=1g --rm -v "$(pwd)":/sitespeed.io sitespeedio/sitespeed.io --plugins.add /sitespeed.io/gitlab-exporter/index.js --outputFolder sitespeed-results $URL
+    - docker run --shm-size=1g --rm -v "$(pwd)":/sitespeed.io sitespeedio/sitespeed.io --outputFolder sitespeed-results $URL
     - mv sitespeed-results/data/performance.json performance.json
   artifacts:
     paths:
       - sitespeed-results/
     reports:
       performance: performance.json
+
 
 container_scanning:
   stage: security
