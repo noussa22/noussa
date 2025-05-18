@@ -103,10 +103,12 @@ performance_job:
     - docker:dind
   variables:
     URL: http://ip172-18-0-31-d0kr1bq91nsg00bqemsg-8080.direct.labs.play-with-docker.com
-    DOCKER_HOST: "tcp://ip172-18-0-31-d0kr1bq91nsg00bqemsg.direct.labs.play-with-docker.com:2375"
+    DOCKER_HOST: tcp://docker:2375
   script:
     - apk add --no-cache curl docker-cli
     - |
+      set -e
+      echo "Checking if app is ready at $URL"
       x=1
       until curl -s -o /dev/null -w "%{http_code}" "$URL" | grep -q "200" || [ $x -gt 60 ]; do
         echo "Waiting for app... attempt $x"
@@ -118,11 +120,20 @@ performance_job:
         echo "Application failed to start after waiting"
         exit 1
       fi
-    - mkdir -p gitlab-exporter
-    - wget -O ./gitlab-exporter/index.js https://gitlab.com/gitlab-org/gl-performance/raw/master/index.js
-    - mkdir sitespeed-results
-    - docker run --shm-size=1g --rm -v "$(pwd)":/sitespeed.io sitespeedio/sitespeed.io --plugins.add /sitespeed.io/gitlab-exporter --outputFolder sitespeed-results $URL
-    - mv sitespeed-results/data/performance.json performance.json
+
+      mkdir -p gitlab-exporter
+      wget -O ./gitlab-exporter/index.js https://gitlab.com/gitlab-org/gl-performance/raw/master/index.js
+
+      mkdir -p sitespeed-results
+      docker run --shm-size=1g --rm -v "$(pwd)":/sitespeed.io sitespeedio/sitespeed.io \
+        --plugins.add /sitespeed.io/gitlab-exporter \
+        --outputFolder sitespeed-results $URL
+
+      mv sitespeed-results/data/performance.json performance.json
+  artifacts:
+    paths:
+      - performance.json
+
 
 container_scanning:
   stage: security
